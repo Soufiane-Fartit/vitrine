@@ -102,30 +102,6 @@ jobs:
           set -euo pipefail
           python3 ci/vitrine_adhoc.py sign "$RUNNER_TEMP/vitrine-prepared.ipa" "$RUNNER_TEMP/vitrine-adhoc.ipa" "$VITRINE_SIGNING_MANIFEST" "$VITRINE_SIGNING_DIR"
 
-      - name: Publish optional private wireless OTA build
-        shell: bash
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          set +x
-          set -euo pipefail
-          if [[ -z "$R2_ACCOUNT_ID" && -z "$R2_ACCESS_KEY_ID" && -z "$R2_SECRET_ACCESS_KEY" ]]; then
-            echo 'Cloudflare OTA hosting not configured; encrypted artifact remains available.'
-            exit 0
-          fi
-          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing OTA Actions secret: $name"
-              exit 1
-            fi
-          done
-          if ! command -v aws >/dev/null 2>&1; then
-            brew install awscli
-          fi
-          python3 ota/publish_r2.py "$RUNNER_TEMP/vitrine-adhoc.ipa"
-
       - name: Encrypt IPA for private download from a public fork
         shell: bash
         env:

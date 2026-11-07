@@ -1,35 +1,22 @@
-# Sign a prebuilt Vitrine IPA (Ad Hoc)
+# Vitrine Ad Hoc — same setup as Done
 
-This fork provides **Vitrine - sign prebuilt Ad Hoc IPA** under [GitHub Actions](https://github.com/Soufiane-Fartit/vitrine/actions/workflows/vitrine-adhoc.yml). It does **not** compile Spotify, and no `SPOTIFY_IPA_URL` is needed.
-
-## Prebuilt IPA used
-
-- Publisher: [estrogencat/EeveeIPA](https://github.com/estrogencat/EeveeIPA/releases/tag/1.0.0-beta.16-LG-2026-10-26-11-29-04) (**unofficial third-party release**, not distributed or verified by Vitrine or Spotify).
-- Version: Spotify **9.1.90** with **Vitrine 1.0.0-beta.16**.
-- Asset: `EeveeSpotify-9.1.90-ESR-1.0.0-beta.16-LG-patched.ipa` (publisher labels it certificate-signing-compatible).
-- SHA-256: `b9e32500c9f31a318ab30124a292c39560f7e088d036957b1e7782b946be6685`.
-
-The workflow pins the exact download and checks the SHA-256 before signing, preventing a changed file from passing unnoticed. This **does not** establish the third-party executable's trustworthiness. No source build or independent security audit is performed. This prebuilt binary won't automatically incorporate later changes to this fork.
+Use **Codemagic** to download the signed IPA directly from the build, just as you do with **Done / TaskReminder**. There is **no Cloudflare, R2, password-protected archive, local Mac, or iPhone-to-PC cable** involved in this flow.
 
 ## One-time setup
 
-1. In [Vitrine repository secrets](https://github.com/Soufiane-Fartit/vitrine/settings/secrets/actions), copy the secure signing values already used for Done (TaskReminder): `FASTLANE_ISSUER_ID`, `FASTLANE_KEY_ID`, `FASTLANE_KEY`, `GH_PAT`, `MATCH_PASSWORD`, `TEAMID`. GitHub secrets are scoped to each repository and cannot be copied automatically. `GH_PAT` needs access to the private `Match-Secrets` repo and permission to write new Vitrine profiles there.
-2. **One new secret:** `IPA_ARCHIVE_PASSWORD` (12+ characters, unique, keep it safe). This is **only** because your fork is public; Actions artifacts can be downloaded by others. The signed IPA is encrypted as `.7z` before upload.
-3. In [Apple Developer Identifiers](https://developer.apple.com/account/resources/identifiers/list), register the main Vitrine ID: `com.soufianefartit.vitrine`. Also register each extension ID reported in the workflow summary on the first run. The workflow will then create matching Ad Hoc profiles using your **existing** distribution certificate and iPhone registration; it will not create another certificate intentionally.
-4. Run [Vitrine - sign prebuilt Ad Hoc IPA](https://github.com/Soufiane-Fartit/vitrine/actions/workflows/vitrine-adhoc.yml) manually on `main`.
-5. Download the `vitrine-adhoc-encrypted` artifact, extract the nested `.7z` with your password, then install the signed `vitrine-adhoc.ipa` through your regular Ad Hoc installation method.
+1. Open [Codemagic](https://codemagic.io/apps) and **Add application** from [Soufiane-Fartit/vitrine](https://github.com/Soufiane-Fartit/vitrine). Choose the same Codemagic team/account as Done. If GitHub doesn't show the fork, allow the Codemagic GitHub App to access it.
+2. Select the repository's **codemagic.yaml** configuration and the **iOS Ad Hoc** (`ios-adhoc`) workflow.
+3. The workflow uses the existing **`taskreminder_secrets`** environment group already used by Done. It needs the same six values: `FASTLANE_ISSUER_ID`, `FASTLANE_KEY_ID`, `FASTLANE_KEY`, `TEAMID`, `MATCH_PASSWORD`, and `GH_PAT`. No new Apple certificate or provisioning setup is required if your profiles and iPhone are already registered.
+4. Start the build. On the completed build page open **Artifacts** and download **`Vitrine-AdHoc.ipa`**. This is the **direct IPA artifact**, not a ZIP or encrypted 7z.
 
-## Wireless iPhone installation (optional)
+The workflow downloads the fixed Vitrine 1.0.0-beta.16 / Spotify 9.1.90 certificate-compatible IPA from [estrogencat/EeveeIPA](https://github.com/estrogencat/EeveeIPA/releases/tag/1.0.0-beta.16-LG-2026-10-26-11-29-04), verifies the pinned SHA-256 hash, reuses the existing Fastlane Match certificate store and generates Vitrine Ad Hoc profiles, then signs the main app plus five extensions with `zsign`.
 
-For cable-free installation directly from iPhone Safari, follow [OTA_SETUP.md](OTA_SETUP.md). It adds a private Cloudflare R2 bucket and password-protected Worker. After this one-time setup, future successful Ad Hoc builds become available from your personal installation page, without extracting archives or connecting your iPhone to a PC.
+## What remains on GitHub?
 
-This is **opt-in**. It is disabled unless all three `R2_*` GitHub secrets are configured; the existing encrypted artifact remains available.
+The previously successful [GitHub Actions workflow](https://github.com/Soufiane-Fartit/vitrine/actions/workflows/vitrine-adhoc.yml) is kept as an **alternative encrypted backup**, because the public repository should not publish a signed IPA openly (its embedded Ad Hoc profiles can expose registered device UDIDs). You **don't need to run that workflow** when using Codemagic. The Cloudflare R2 integration has been removed.
 
-## Notes
+## Installation
 
-- No TestFlight, separate certificate, new device registration, Spotify IPA URL, or local Mac.
-- App ID is **different** from official Spotify and Done, so this IPA installs separately. Spotify URL/deep-link handling may differ.
-- The workflow re-signs the main app and present extensions with separate provisioning profiles. Some Spotify-specific capabilities may require their own Apple entitlements and may not function after signing.
-- The workflow does not prove real-device installation or playback: a successful run only confirms IPA/provisioning metadata.
-- The alternative **Build IPA from your own Spotify IPA** workflow remains available for source builds.
-- **Do not** upload signing credentials or the IPA to your public repository. The signing identity is read from your pre-existing private `Match-Secrets` store.
+Your iPhone must be registered in the Vitrine Ad Hoc profiles, exactly as with Done. Once the Codemagic build finishes, use its downloaded IPA and your normal installation route. A raw IPA file does not itself create a universal Safari installation link; the installation behavior depends on how you open it and on iOS. The goal of this workflow is **matching Done's direct artifact download**, without an additional archive/password/hosting service.
+
+**Note:** The upstream IPA is an unofficial modified Spotify binary. A successful signature check does not independently audit it or prove on-device compatibility.

@@ -76,7 +76,7 @@ def select_profiles(directory, bundle_ids):
         profile = profile_data(path)
         app = profile_id(profile)
         if app in bundle_ids and app not in selected:
-            if profile.get('ExpirationDate', datetime.min.replace(tzinfo=timezone.utc)) <= datetime.now(timezone.utc):
+            if profile.get('ExpirationDate', datetime.min) <= datetime.now(timezone.utc).replace(tzinfo=None):
                 raise ValueError(f'Expired Ad Hoc profile for {app}')
             if not profile.get('ProvisionedDevices'):
                 raise ValueError(f'No registered Ad Hoc devices for {app}')

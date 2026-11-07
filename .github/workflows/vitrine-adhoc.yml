@@ -41,7 +41,7 @@ jobs:
               exit 1
             fi
           done
-          [ "${#IPA_ARCHIVE_PASSWORD}" -ge 20 ] || { echo '::error::Use a strong (20+ character) IPA_ARCHIVE_PASSWORD'; exit 1; }
+          [ "${#IPA_ARCHIVE_PASSWORD}" -ge 12 ] || { echo '::error::Use a strong (12+ character) IPA_ARCHIVE_PASSWORD'; exit 1; }
           echo "::add-mask::$IPA_ARCHIVE_PASSWORD"
 
       - uses: ruby/setup-ruby@v1

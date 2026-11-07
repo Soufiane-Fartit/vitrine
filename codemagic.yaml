@@ -1,6 +1,6 @@
 # Same Ad Hoc artifact delivery model as Done / TaskReminder.
 # Add this repository as an application in the same Codemagic account as Done,
-# then select the "iOS Ad Hoc" workflow. Existing taskreminder_secrets
+# then select the "iOS Ad Hoc" workflow. The existing vitrine_secrets
 # environment group provides the same Apple/Fastlane Match credentials.
 workflows:
   ios-adhoc:
@@ -11,7 +11,7 @@ workflows:
       xcode: "26.6"
       ruby: default
       groups:
-        - taskreminder_secrets
+        - vitrine_secrets
       vars:
         GITHUB_REPOSITORY_OWNER: Soufiane-Fartit
         VITRINE_APP_ID: com.soufianefartit.vitrine
@@ -23,7 +23,7 @@ workflows:
           set -euo pipefail
           for name in FASTLANE_ISSUER_ID FASTLANE_KEY_ID FASTLANE_KEY TEAMID MATCH_PASSWORD GH_PAT; do
             if [[ -z "${!name:-}" ]]; then
-              echo "Missing Codemagic secret: $name (group taskreminder_secrets)." >&2
+              echo "Missing Codemagic secret: $name (group vitrine_secrets)." >&2
               exit 1
             fi
           done

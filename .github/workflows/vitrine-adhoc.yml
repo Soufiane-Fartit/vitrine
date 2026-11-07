@@ -17,8 +17,8 @@ jobs:
     timeout-minutes: 50
     env:
       VITRINE_APP_ID: com.soufianefartit.vitrine
-      VITRINE_SIGNING_MANIFEST: ${{ runner.temp }}/vitrine-ids.json
-      VITRINE_SIGNING_DIR: ${{ runner.temp }}/vitrine-match-export
+      VITRINE_SIGNING_MANIFEST: /tmp/vitrine-ids.json
+      VITRINE_SIGNING_DIR: /tmp/vitrine-match-export
       FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
       FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
       FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}

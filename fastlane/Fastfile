@@ -2,7 +2,7 @@ require 'json'
 
 def need_env(name)
   value = ENV[name].to_s
-  UI.user_error!("Missing #{name} GitHub Actions secret") if value.empty?
+  UI.user_error!("Missing #{name} signing environment variable") if value.empty?
   value
 end
 

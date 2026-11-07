@@ -19,6 +19,12 @@ The workflow pins the exact download and checks the SHA-256 before signing, prev
 4. Run [Vitrine - sign prebuilt Ad Hoc IPA](https://github.com/Soufiane-Fartit/vitrine/actions/workflows/vitrine-adhoc.yml) manually on `main`.
 5. Download the `vitrine-adhoc-encrypted` artifact, extract the nested `.7z` with your password, then install the signed `vitrine-adhoc.ipa` through your regular Ad Hoc installation method.
 
+## Wireless iPhone installation (optional)
+
+For cable-free installation directly from iPhone Safari, follow [OTA_SETUP.md](OTA_SETUP.md). It adds a private Cloudflare R2 bucket and password-protected Worker. After this one-time setup, future successful Ad Hoc builds become available from your personal installation page, without extracting archives or connecting your iPhone to a PC.
+
+This is **opt-in**. It is disabled unless all three `R2_*` GitHub secrets are configured; the existing encrypted artifact remains available.
+
 ## Notes
 
 - No TestFlight, separate certificate, new device registration, Spotify IPA URL, or local Mac.

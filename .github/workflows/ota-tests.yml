@@ -1,0 +1,27 @@
+name: Wireless OTA tests
+
+on:
+  pull_request:
+    paths:
+      - 'ota/**'
+      - '.github/workflows/vitrine-adhoc.yml'
+      - '.github/workflows/ota-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ota-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test password gating, manifest and IPA streaming
+        working-directory: ota/worker
+        run: node --test
+      - name: Verify R2 uploader syntax
+        run: python3 -m py_compile ota/publish_r2.py

@@ -57,6 +57,10 @@ jobs:
           path: theos
           submodules: recursive
 
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
       - name: Install build and signing tools
         shell: bash
         run: |

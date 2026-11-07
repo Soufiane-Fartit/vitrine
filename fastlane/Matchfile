@@ -1,0 +1,4 @@
+git_url('https://github.com/Soufiane-Fartit/Match-Secrets.git')
+git_branch('master')
+storage_mode('git')
+type('adhoc')

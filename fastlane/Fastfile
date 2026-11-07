@@ -1,0 +1,42 @@
+require 'json'
+
+def need_env(name)
+  value = ENV[name].to_s
+  UI.user_error!("Missing #{name} GitHub Actions secret") if value.empty?
+  value
+end
+
+platform :ios do
+  desc 'Reuse Done Match distribution identity and provision separate Ad Hoc profiles for Vitrine'
+  lane :sync_vitrine_adhoc do
+    manifest = JSON.parse(File.read(need_env('VITRINE_SIGNING_MANIFEST')))
+    app_ids = manifest.fetch('bundle_ids')
+    UI.user_error!('No Vitrine app identifiers') if app_ids.empty?
+
+    setup_ci
+    api_key = app_store_connect_api_key(
+      key_id: need_env('FASTLANE_KEY_ID'),
+      issuer_id: need_env('FASTLANE_ISSUER_ID'),
+      key_content: need_env('FASTLANE_KEY'),
+      in_house: false
+    )
+
+    options = {
+      type: 'adhoc',
+      app_identifier: app_ids,
+      team_id: need_env('TEAMID'),
+      api_key: api_key,
+      git_url: 'https://github.com/Soufiane-Fartit/Match-Secrets.git',
+      git_branch: 'master',
+      git_basic_authorization: need_env('MATCH_GIT_BASIC_AUTHORIZATION'),
+      generate_apple_certs: true,
+      renew_expired_certs: false,
+      output_path: need_env('VITRINE_SIGNING_DIR')
+    }
+
+    # Fail rather than create a competing Apple distribution certificate.
+    match(**options.merge(readonly: true, skip_provisioning_profiles: true))
+    # Only Vitrine IDs; never renew or replace Done's provisioning profiles.
+    match(**options.merge(readonly: false, force_for_new_devices: true, fail_on_name_taken: true))
+  end
+end

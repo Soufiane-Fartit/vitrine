@@ -1,0 +1,139 @@
+name: Vitrine - personal Ad Hoc IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vitrine-adhoc
+  cancel-in-progress: false
+
+jobs:
+  build-and-sign:
+    if: github.ref == 'refs/heads/main' && github.repository == 'Soufiane-Fartit/vitrine'
+    runs-on: macos-26
+    timeout-minutes: 50
+    env:
+      THEOS: ${{ github.workspace }}/theos
+      VITRINE_APP_ID: com.soufianefartit.vitrine
+      VITRINE_SIGNING_MANIFEST: ${{ runner.temp }}/vitrine-ids.json
+      VITRINE_SIGNING_DIR: ${{ runner.temp }}/vitrine-match-export
+      FASTLANE_KEY_ID: ${{ secrets.FASTLANE_KEY_ID }}
+      FASTLANE_ISSUER_ID: ${{ secrets.FASTLANE_ISSUER_ID }}
+      FASTLANE_KEY: ${{ secrets.FASTLANE_KEY }}
+      TEAMID: ${{ secrets.TEAMID }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify signing configuration
+        shell: bash
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          SPOTIFY_IPA_URL: ${{ secrets.SPOTIFY_IPA_URL }}
+          IPA_ARCHIVE_PASSWORD: ${{ secrets.IPA_ARCHIVE_PASSWORD }}
+        run: |
+          set +x
+          set -euo pipefail
+          for name in FASTLANE_KEY_ID FASTLANE_ISSUER_ID FASTLANE_KEY TEAMID MATCH_PASSWORD GH_PAT SPOTIFY_IPA_URL IPA_ARCHIVE_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing Vitrine Actions secret: ${name}"
+              exit 1
+            fi
+          done
+          [[ "$SPOTIFY_IPA_URL" == https://* ]] || { echo '::error::SPOTIFY_IPA_URL must be an HTTPS URL'; exit 1; }
+          [ "${#IPA_ARCHIVE_PASSWORD}" -ge 20 ] || { echo '::error::Use a strong (20+ character) IPA_ARCHIVE_PASSWORD'; exit 1; }
+          echo "::add-mask::$IPA_ARCHIVE_PASSWORD"
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/checkout@v5
+        with:
+          repository: theos/theos
+          path: theos
+          submodules: recursive
+
+      - name: Install build and signing tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install make dpkg ldid zsign sevenzip
+          python3 -m pip install --break-system-packages git+https://github.com/asdfzxcvbn/pyzule-rw.git
+          gem install fastlane --no-document
+
+      - name: Download own decrypted Spotify IPA
+        shell: bash
+        env:
+          SPOTIFY_IPA_URL: ${{ secrets.SPOTIFY_IPA_URL }}
+        run: |
+          set +x
+          set -euo pipefail
+          mkdir -p ipa
+          curl --fail --silent --show-error --location --retry 2 --output ipa/spotify.ipa "$SPOTIFY_IPA_URL"
+          unzip -tqq ipa/spotify.ipa
+          echo 'Spotify IPA ZIP structure verified.'
+
+      - name: Build unsigned Vitrine
+        shell: bash
+        run: |
+          set -euo pipefail
+          make release
+          test -n "$(find out -maxdepth 1 -name 'vitrine-*.ipa' -print -quit)"
+
+      - name: Rebundle and enumerate nested app IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNSIGNED="$(find out -maxdepth 1 -name 'vitrine-*.ipa' -print -quit)"
+          python3 ci/vitrine_adhoc.py prepare "$UNSIGNED" "$RUNNER_TEMP/vitrine-prepared.ipa" "$VITRINE_SIGNING_MANIFEST" --app-id "$VITRINE_APP_ID"
+          {
+            echo '## Vitrine Ad Hoc'
+            echo
+            echo 'Build targets (separate from Done):'
+            python3 -c 'import json,os; print("\n".join("- `"+x+"`" for x in json.load(open(os.environ["VITRINE_SIGNING_MANIFEST"]))["bundle_ids"]))'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Reuse existing Match identity and generate Vitrine profiles
+        shell: bash
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          set +x
+          set -euo pipefail
+          mkdir -p "$VITRINE_SIGNING_DIR"
+          export MATCH_GIT_BASIC_AUTHORIZATION
+          MATCH_GIT_BASIC_AUTHORIZATION="$(printf '%s:%s' "$GITHUB_REPOSITORY_OWNER" "$GH_PAT" | base64 | tr -d '\r\n')"
+          echo "::add-mask::$MATCH_GIT_BASIC_AUTHORIZATION"
+          unset GH_PAT
+          fastlane ios sync_vitrine_adhoc
+
+      - name: Sign and verify IPA with each extension profile
+        shell: bash
+        run: |
+          set +x
+          set -euo pipefail
+          python3 ci/vitrine_adhoc.py sign "$RUNNER_TEMP/vitrine-prepared.ipa" "$RUNNER_TEMP/vitrine-adhoc.ipa" "$VITRINE_SIGNING_MANIFEST" "$VITRINE_SIGNING_DIR"
+
+      - name: Encrypt IPA for private download from a public fork
+        shell: bash
+        env:
+          IPA_ARCHIVE_PASSWORD: ${{ secrets.IPA_ARCHIVE_PASSWORD }}
+        run: |
+          set +x
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/download"
+          cd "$RUNNER_TEMP"
+          7zz a -bd -y -t7z -m0=lzma2 -mhe=on -p"$IPA_ARCHIVE_PASSWORD" download/vitrine-adhoc.7z vitrine-adhoc.ipa >/dev/null
+          echo 'Signed IPA encrypted with AES-256 for download.'
+
+      - name: Download encrypted IPA archive
+        uses: actions/upload-artifact@v5
+        with:
+          name: vitrine-adhoc-encrypted
+          path: ${{ runner.temp }}/download/vitrine-adhoc.7z
+          if-no-files-found: error
+          retention-days: 7

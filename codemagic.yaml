@@ -1,0 +1,85 @@
+# Same Ad Hoc artifact delivery model as Done / TaskReminder.
+# Add this repository as an application in the same Codemagic account as Done,
+# then select the "iOS Ad Hoc" workflow. Existing taskreminder_secrets
+# environment group provides the same Apple/Fastlane Match credentials.
+workflows:
+  ios-adhoc:
+    name: iOS Ad Hoc
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      xcode: "26.6"
+      ruby: default
+      groups:
+        - taskreminder_secrets
+      vars:
+        GITHUB_REPOSITORY_OWNER: Soufiane-Fartit
+        VITRINE_APP_ID: com.soufianefartit.vitrine
+    scripts:
+      - name: Check Apple signing credentials
+        script: |
+          #!/bin/bash
+          set +x
+          set -euo pipefail
+          for name in FASTLANE_ISSUER_ID FASTLANE_KEY_ID FASTLANE_KEY TEAMID MATCH_PASSWORD GH_PAT; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing Codemagic secret: $name (group taskreminder_secrets)." >&2
+              exit 1
+            fi
+          done
+
+      - name: Install IPA signing tools
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          brew install zsign
+          gem install fastlane --no-document
+
+      - name: Download verified Vitrine 1.0.0-beta.16 IPA
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          IPA_URL='https://github.com/estrogencat/EeveeIPA/releases/download/1.0.0-beta.16-LG-2026-10-26-11-29-04/EeveeSpotify-9.1.90-ESR-1.0.0-beta.16-LG-patched.ipa'
+          EXPECTED_SHA256='b9e32500c9f31a318ab30124a292c39560f7e088d036957b1e7782b946be6685'
+          mkdir -p "$CM_BUILD_DIR/artifacts"
+          curl --fail --silent --show-error --location --retry 3 --output "$CM_BUILD_DIR/artifacts/vitrine-source.ipa" "$IPA_URL"
+          printf '%s  %s\n' "$EXPECTED_SHA256" "$CM_BUILD_DIR/artifacts/vitrine-source.ipa" | shasum -a 256 --check
+          unzip -tqq "$CM_BUILD_DIR/artifacts/vitrine-source.ipa"
+
+      - name: Prepare app and extension identifiers
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          python3 ci/vitrine_adhoc.py prepare \
+            "$CM_BUILD_DIR/artifacts/vitrine-source.ipa" \
+            "$CM_BUILD_DIR/artifacts/vitrine-prepared.ipa" \
+            "$CM_BUILD_DIR/artifacts/vitrine-ids.json" \
+            --app-id "$VITRINE_APP_ID"
+
+      - name: Use Done's signing certificate and generate Vitrine profiles
+        script: |
+          #!/bin/bash
+          set +x
+          set -euo pipefail
+          export VITRINE_SIGNING_MANIFEST="$CM_BUILD_DIR/artifacts/vitrine-ids.json"
+          export VITRINE_SIGNING_DIR="$CM_BUILD_DIR/artifacts/vitrine-match-export"
+          mkdir -p "$VITRINE_SIGNING_DIR"
+          MATCH_GIT_BASIC_AUTHORIZATION="$(printf '%s:%s' "$GITHUB_REPOSITORY_OWNER" "$GH_PAT" | base64 | tr -d '\r\n')"
+          export MATCH_GIT_BASIC_AUTHORIZATION
+          unset GH_PAT
+          fastlane ios sync_vitrine_adhoc
+
+      - name: Sign and validate final Ad Hoc IPA
+        script: |
+          #!/bin/bash
+          set -euo pipefail
+          python3 ci/vitrine_adhoc.py sign \
+            "$CM_BUILD_DIR/artifacts/vitrine-prepared.ipa" \
+            "$CM_BUILD_DIR/artifacts/Vitrine-AdHoc.ipa" \
+            "$CM_BUILD_DIR/artifacts/vitrine-ids.json" \
+            "$CM_BUILD_DIR/artifacts/vitrine-match-export"
+          test -s "$CM_BUILD_DIR/artifacts/Vitrine-AdHoc.ipa"
+          unzip -tqq "$CM_BUILD_DIR/artifacts/Vitrine-AdHoc.ipa"
+          echo "Ad Hoc IPA is ready for download from this Codemagic build."
+    artifacts:
+      - artifacts/Vitrine-AdHoc.ipa
